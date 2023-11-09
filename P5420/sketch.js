@@ -11,7 +11,7 @@ var short_axis = 200;
 var basic_r = 100;
 var ripple_time = 3;
 var drip_len = 100;
-var drip_time = 0.25;
+var drip_time = 0.05;
 var model;
 class Eld {
   // ellipse data
@@ -22,10 +22,11 @@ class Eld {
 }
 class Ripple {
   // ellipse data
-  constructor(x, y, t) {
+  constructor(x, y, t, color) {
     this.x = x;
     this.y = y;
     this.t = t;
+    this.color = color;
     this.rs = [];
     var wave = fft.waveform();
     for (var i = 0; i < PI; i += 0.01) {
@@ -40,6 +41,7 @@ class Ripple {
   }
   draw() {
     var mul = map(audio.currentTime() - this.t, 0, ripple_time, 0, 4);
+    stroke(this.color);
     beginShape();
     this.rs.forEach(
       function (e) {
@@ -58,11 +60,12 @@ class Ripple {
   }
 }
 class Drip {
-  constructor(x, y, t) {
+  constructor(x, y, t, color) {
     this.x = x;
     this.y = y;
     this.t = t;
     this.drop = false;
+    this.color = color;
   }
   draw() {
     var l = map(
@@ -76,6 +79,7 @@ class Drip {
       0,
       map(audio.currentTime() - this.t, 0, drip_time, -drip_len, drip_len)
     );
+    stroke(this.color);
     line(this.x, this.y + sy, this.x, this.y + sy + l);
   }
 }
@@ -84,11 +88,11 @@ class Model {
     this.drips = [];
     this.ripples = [];
   }
-  add_ripple(x, y, t) {
-    this.ripples.push(new Ripple(x, y, t));
+  add_ripple(x, y, t, color) {
+    this.ripples.push(new Ripple(x, y, t, color));
   }
-  add_drip(x, y, t) {
-    this.drips.push(new Drip(x, y, t));
+  add_drip(x, y, t, color) {
+    this.drips.push(new Drip(x, y, t, color));
   }
   draw() {
     this.drips.forEach(function (e) {
@@ -107,7 +111,8 @@ class Model {
         this.add_ripple(
           this.drips[i].x,
           this.drips[i].y + drip_len,
-          this.drips[i].t
+          this.drips[i].t,
+          this.drips[i].color
         );
         this.drips[i].drop = true;
       }
@@ -150,11 +155,13 @@ function setup() {
       }
     });
     audio.playMode("restart");
-    audio.play();
+    // audio.play();
   });
-  fft = new p5.FFT(0.5);
+  fft = new p5.FFT(0.3);
 }
-
+// c major 16.35 Hz	32.70 Hz	65.41 Hz	130.81 Hz	261.63 Hz	523.25 Hz	1046.50 Hz	2093.00 Hz	4186.01 Hz
+var pf = [16.35, 32.7, 65.41, 130.81, 261.63, 523.25, 1046.5];
+var last_drip_time = 0;
 function draw() {
   if (read_over == true && !mouseIsPressed) {
     time_slider.value(audio.currentTime());
@@ -164,8 +171,56 @@ function draw() {
   stroke(255);
   var wave = fft.waveform();
   if (max(wave.slice(wave.length / 2)) > 0.1) {
-    model.add_drip(width / 2, height / 2, audio.currentTime());
+    var r = map(max(wave.slice(wave.length / 2)), 0, 1, 35, 180);
+    var g = map(max(wave.slice(wave.length / 2)), 0, 1, 85, 225);
+    var b = map(max(wave.slice(wave.length / 2)), 0, 1, 130, 255);
+    var cr = color(r, g, b);
+    model.add_drip(width / 2, height / 2, audio.currentTime(), cr);
   }
+  // var fs = fft.analyze();
+  // var cr = color(255, 255, 255);
+  // var max_h = 0;
+  // draw lines
+  // 20 to 20000 Hz
+  // all the piano notes frequency
+
+  // var flag = false;
+  // for (var i = 0; i < fs.length; i++) {
+  //   var paf = false;
+  //   var cr_tmp = color(255, 255, 255);
+  //   var x = map(i, 0, fs.length, 0, width);
+  //   var y = height / 2;
+  //   var h = map(fs[i], 0, 255, 0, 600);
+  //   // if (h < max_h) {
+  //   //   continue;
+  //   // }
+  //   var f = map(i, 0, fs.length, 20, 20000);
+  //   // if the frequency is in the piano notes change the color
+  //   for (var j = 0; j < pf.length; j++) {
+  //     if (abs(f - pf[j]) < 20) {
+  //       r = map(h, 0, 600, 0, 255);
+  //       g = map(h, 0, 600, 0, 255);
+  //       b = 0;
+  //       cr_tmp = color(r, g, b);
+  //       paf = true;
+  //       break;
+  //     }
+  //   }
+  //   if (paf && h > max_h) {
+  //     max_h = h;
+  //     cr = cr_tmp;
+  //     flag = true;
+  //   }
+  //   if (paf) {
+  //     stroke(cr_tmp);
+  //     line(x, y - h / 2, x, y + h / 2);
+  //   }
+  // }
+  // if (flag && max_h > 400 && audio.currentTime() - last_drip_time > 0.1) {
+  //   last_drip_time = audio.currentTime();
+  //   model.add_drip(width / 2, height / 2, audio.currentTime(), cr);
+  // }
+
   model.update();
   model.draw();
 }
