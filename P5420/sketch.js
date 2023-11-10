@@ -42,6 +42,8 @@ class Ripple {
   draw() {
     strokeWeight(1);
     var mul = map(audio.currentTime() - this.t, 0, ripple_time, 0, 4);
+    var saturation = map(audio.currentTime() - this.t, 0, ripple_time, 100, 0);
+    this.color = color(hue(this.color), saturation, brightness(this.color));
     stroke(this.color);
     beginShape();
     this.rs.forEach(
@@ -199,12 +201,12 @@ function draw() {
     // }
   }
   console.log(sum);
-  if (sum > 2500) {
+  if (sum > 3000) {
     model.add_drip(
       width / 2 + random(-width / 4, width / 4),
       height / 2 - drip_len + random(-drip_len / 4, drip_len / 4),
       audio.currentTime(),
-      color(map(sum, 2000, 15000, 0, 100), map(sum, 2000, 15000, 0, 100), 100)
+      color(map(sum, 3000, 15000, 0, 100), map(sum, 3000, 15000, 0, 100), 100)
     );
     // clear the buffer
     freq_buffer = [];
