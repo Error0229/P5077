@@ -9,7 +9,7 @@ var min_r = 150;
 var long_axis = 400;
 var short_axis = 200;
 var basic_r = 100;
-var ripple_time = 3;
+var ripple_time = 2;
 var drip_len = 100;
 var drip_time = 0.05;
 var model;
@@ -134,9 +134,10 @@ class Model {
   }
 }
 function setup() {
+  colorMode(HSB);
   model = new Model();
   createCanvas(windowWidth, windowHeight);
-  audio = loadSound("Sky_Clearing_Up.mp3", function () {
+  audio = loadSound("Flower_dance.mp3", function () {
     read_over = true;
     td = audio.duration();
     time_slider = createSlider(0, td, 0, 0.01);
@@ -157,10 +158,12 @@ function setup() {
     audio.playMode("restart");
     // audio.play();
   });
-  fft = new p5.FFT(0.3);
+  fft = new p5.FFT();
 }
 // c major 16.35 Hz	32.70 Hz	65.41 Hz	130.81 Hz	261.63 Hz	523.25 Hz	1046.50 Hz	2093.00 Hz	4186.01 Hz
-var pf = [16.35, 32.7, 65.41, 130.81, 261.63, 523.25, 1046.5];
+// var pf = [16.35, 32.7, 65.41, 130.81, 261.63, 523.25, 1046.5];
+var freq_buffer = [];
+var threshold = 0.1;
 var last_drip_time = 0;
 function draw() {
   if (read_over == true && !mouseIsPressed) {
@@ -170,19 +173,41 @@ function draw() {
   noFill();
   stroke(255);
   var wave = fft.waveform();
-  if (max(wave.slice(wave.length / 2)) > 0.1) {
-    var r = map(max(wave.slice(wave.length / 2)), 0, 1, 35, 180);
-    var g = map(max(wave.slice(wave.length / 2)), 0, 1, 85, 225);
-    var b = map(max(wave.slice(wave.length / 2)), 0, 1, 130, 255);
-    var cr = color(r, g, b);
-    model.add_drip(width / 2, height / 2, audio.currentTime(), cr);
+
+  // if (max(wave) > 0.1) {
+  //   // using HSB color mode
+  //   var h = map(audio.currentTime(), 0, td, 0, 360);
+  //   var s = map(max(wave), 0, 1, 0, 100);
+  //   var cr = color(h, s, 100);
+  //   // model.add_drip(width / 2, height / 2, audio.currentTime(), cr);
+  // }
+  var fs = fft.analyze();
+  freq_buffer.push(fs);
+  if (freq_buffer.length > 4) {
+    freq_buffer.splice(0, 1);
   }
-  // var fs = fft.analyze();
-  // var cr = color(255, 255, 255);
+  var sum = 0;
+  for (var i = 0; i < fs.length; i++) {
+    if (fs[i] - freq_buffer[0][i] > 0) {
+      sum += fs[i] - freq_buffer[0][i];
+    }
+  }
+  console.log(sum);
+  if (sum > 900) {
+    model.add_drip(
+      width / 2,
+      height / 2,
+      audio.currentTime(),
+      color(map(sum, 50, 7000, 0, 100), 100, 100)
+    );
+    // clear the buffer
+    freq_buffer = [];
+  }
+  // var cr = color(100, 100, 100);
   // var max_h = 0;
-  // draw lines
-  // 20 to 20000 Hz
-  // all the piano notes frequency
+  // // draw lines
+  // // 20 to 20000 Hz
+  // // all the piano notes frequency
 
   // var flag = false;
   // for (var i = 0; i < fs.length; i++) {
@@ -198,9 +223,9 @@ function draw() {
   //   // if the frequency is in the piano notes change the color
   //   for (var j = 0; j < pf.length; j++) {
   //     if (abs(f - pf[j]) < 20) {
-  //       r = map(h, 0, 600, 0, 255);
-  //       g = map(h, 0, 600, 0, 255);
-  //       b = 0;
+  //       r = map(h, 0, 600, 0, 100);
+  //       g = map(h, 0, 600, 0, 100);
+  //       b = 100;
   //       cr_tmp = color(r, g, b);
   //       paf = true;
   //       break;
@@ -212,9 +237,9 @@ function draw() {
   //     flag = true;
   //   }
   //   if (paf) {
-  //     stroke(cr_tmp);
-  //     line(x, y - h / 2, x, y + h / 2);
   //   }
+  //   stroke(cr_tmp);
+  //   line(x, y - h / 2, x, y + h / 2);
   // }
   // if (flag && max_h > 400 && audio.currentTime() - last_drip_time > 0.1) {
   //   last_drip_time = audio.currentTime();
