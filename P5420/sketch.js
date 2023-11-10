@@ -180,15 +180,7 @@ function draw() {
   background(0);
   noFill();
   stroke(255);
-  // var wave = fft.waveform();
 
-  // if (max(wave) > 0.1) {
-  //   // using HSB color mode
-  //   var h = map(audio.currentTime(), 0, td, 0, 360);
-  //   var s = map(max(wave), 0, 1, 0, 100);
-  //   var cr = color(h, s, 100);
-  //   // model.add_drip(width / 2, height / 2, audio.currentTime(), cr);
-  // }
   var fs = fft.analyze();
   freq_buffer.push(fs);
   if (freq_buffer.length > 2) {
@@ -200,7 +192,7 @@ function draw() {
     sum += fs[i] - freq_buffer[0][i];
     // }
   }
-  console.log(sum);
+  // console.log(sum);
   if (sum > 3000) {
     model.add_drip(
       width / 2 + random(-width / 4, width / 4),
@@ -211,6 +203,7 @@ function draw() {
     // clear the buffer
     freq_buffer = [];
   }
+  // fail to detect piano notes
   // var cr = color(100, 100, 100);
   // var max_h = 0;
   // // draw lines
