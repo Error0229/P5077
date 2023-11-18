@@ -9,9 +9,9 @@ var min_r = 150;
 var long_axis = 400;
 var short_axis = 200;
 var basic_r = 100;
-var ripple_time = 2;
-var drip_len = 100;
-var drip_time = 0.05;
+var ripple_time = 1.25;
+var drip_len;
+var drip_time = 0.5;
 var model;
 class Eld {
   // ellipse data
@@ -40,7 +40,10 @@ class Ripple {
     );
   }
   draw() {
+    strokeWeight(1);
     var mul = map(audio.currentTime() - this.t, 0, ripple_time, 0, 4);
+    var saturation = map(audio.currentTime() - this.t, 0, ripple_time, 100, 0);
+    this.color = color(hue(this.color), saturation, brightness(this.color));
     stroke(this.color);
     beginShape();
     this.rs.forEach(
@@ -79,7 +82,9 @@ class Drip {
       0,
       map(audio.currentTime() - this.t, 0, drip_time, -drip_len, drip_len)
     );
-    stroke(this.color);
+
+    stroke("white");
+    strokeWeight(3);
     line(this.x, this.y + sy, this.x, this.y + sy + l);
   }
 }
@@ -105,12 +110,14 @@ class Model {
   update() {
     for (var i = 0; i < this.drips.length; i++) {
       if (
-        this.drips[i].drop == false &&
-        audio.currentTime() - this.drips[i].t > drip_time / 2
+        this.drips[i].drop == false
+        // && audio.currentTime() - this.drips[i].t > 0.01
       ) {
         this.add_ripple(
-          this.drips[i].x,
-          this.drips[i].y + drip_len,
+          // this.drips[i].x,
+          // this.drips[i].y + drip_len,
+          width / 2,
+          height / 2,
           this.drips[i].t,
           this.drips[i].color
         );
@@ -134,6 +141,7 @@ class Model {
   }
 }
 function setup() {
+  drip_len = windowHeight / 2;
   colorMode(HSB);
   model = new Model();
   createCanvas(windowWidth, windowHeight);
@@ -142,7 +150,7 @@ function setup() {
     td = audio.duration();
     time_slider = createSlider(0, td, 0, 0.01);
     time_slider.position(0, 0);
-    time_slider.style("width", width + "px");
+    time_slider.style("width", windowWidth + "px");
     time_slider.mouseReleased(function () {
       audio.jump(time_slider.value());
     });
@@ -158,7 +166,7 @@ function setup() {
     audio.playMode("restart");
     // audio.play();
   });
-  fft = new p5.FFT();
+  fft = new p5.FFT(0.3);
 }
 // c major 16.35 Hz	32.70 Hz	65.41 Hz	130.81 Hz	261.63 Hz	523.25 Hz	1046.50 Hz	2093.00 Hz	4186.01 Hz
 // var pf = [16.35, 32.7, 65.41, 130.81, 261.63, 523.25, 1046.5];
@@ -166,43 +174,36 @@ var freq_buffer = [];
 var threshold = 0.1;
 var last_drip_time = 0;
 function draw() {
-  if (read_over == true && !mouseIsPressed) {
+  if (read_over == true && !mouseIsPressed && audio.isPlaying()) {
     time_slider.value(audio.currentTime());
   }
   background(0);
   noFill();
   stroke(255);
-  var wave = fft.waveform();
 
-  // if (max(wave) > 0.1) {
-  //   // using HSB color mode
-  //   var h = map(audio.currentTime(), 0, td, 0, 360);
-  //   var s = map(max(wave), 0, 1, 0, 100);
-  //   var cr = color(h, s, 100);
-  //   // model.add_drip(width / 2, height / 2, audio.currentTime(), cr);
-  // }
   var fs = fft.analyze();
   freq_buffer.push(fs);
-  if (freq_buffer.length > 4) {
+  if (freq_buffer.length > 2) {
     freq_buffer.splice(0, 1);
   }
   var sum = 0;
   for (var i = 0; i < fs.length; i++) {
-    if (fs[i] - freq_buffer[0][i] > 0) {
-      sum += fs[i] - freq_buffer[0][i];
-    }
+    // if (fs[i] - freq_buffer[0][i] > 0) {
+    sum += fs[i] - freq_buffer[0][i];
+    // }
   }
-  console.log(sum);
-  if (sum > 900) {
+  // console.log(sum);
+  if (sum > 3000) {
     model.add_drip(
-      width / 2,
-      height / 2,
+      width / 2 + random(-width / 4, width / 4),
+      height / 2 - drip_len + random(-drip_len / 4, drip_len / 4),
       audio.currentTime(),
-      color(map(sum, 50, 7000, 0, 100), 100, 100)
+      color(map(sum, 3000, 15000, 0, 100), map(sum, 3000, 15000, 0, 100), 100)
     );
     // clear the buffer
     freq_buffer = [];
   }
+  // fail to detect piano notes
   // var cr = color(100, 100, 100);
   // var max_h = 0;
   // // draw lines
