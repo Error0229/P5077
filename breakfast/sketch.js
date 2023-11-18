@@ -1,6 +1,9 @@
 var Engine = Matter.Engine,
   World = Matter.World,
-  Bodies = Matter.Bodies;
+  Bodies = Matter.Bodies,
+  Bounds = Matter.Bounds,
+  Vertices = Matter.Vertices,
+  Common = Matter.Common;
 
 // var engine = Engine.create();
 var ground;
@@ -14,6 +17,9 @@ let breakfastStatus = [];
 let tiredStatus = [];
 let hourStatus = [];
 let dataPoints = [];
+var bowl;
+var bowlCurve;
+let bowl_vertices = [];
 // let enterPoint=
 function preload() {
   data = loadTable("./SleepStudyData.csv", "csv", "header");
@@ -39,32 +45,78 @@ function setup() {
     dataPoints.push(
       new DataPoint(
         data.get(r, "Hours") ? data.get(r, "Hours") : 5,
-        data.get(r, "Tired"),
-        data.get(r, "Breakfast"),
-        createVector(parseInt(posx % 1000), parseInt(posx / 10))
+        data.get(r, "Tired") - 1,
+        1 ? data.get(r, "Breakfast") == "Yes" : 0,
+        createVector(
+          parseInt(150 + (1 ? data.get(r, "Breakfast") == "Yes" : 0) * 700) +
+            (posx % 500),
+          parseInt(posx / 10) - 1000
+        )
       )
     );
     posx += 100;
   }
+  angleMode("degrees");
+  // the outline of the bowl
+  for (let i = 0; i <= 180; i += 3) {
+    let x = cos(i) * 300 + 400;
+    let y = sin(i) * 300 + 600;
+    bowl_vertices.push({
+      x: x,
+      y: y,
+    });
+  }
+  // // the inner curve of the bowl
+  for (let i = 180; i >= 0; i -= 3) {
+    let x = cos(i) * 280 + 400;
+    let y = sin(i) * 280 + 600;
+    bowl_vertices.push({
+      x: x,
+      y: y,
+    });
+  }
+
+  // bowl_vertices.sort((a, b) => a.x - b.x);
+  // Vertices.clockwiseSort(bowl_vertices);
+  // bowl_vertices = [
+  //   { x: 100, y: 600 },
+  //   { x: 100, y: 900 },
+  //   { x: 700, y: 900 },
+  //   { x: 700, y: 600 },
+  //   { x: 690, y: 600 },
+  //   { x: 690, y: 890 },
+  //   { x: 110, y: 890 },
+  //   { x: 110, y: 600 },
+  // ];
+  for (let i = 0; i <= 180; i++) {
+    console.log(bowl_vertices[i]);
+  }
+  // bowl = Bodies.rectangle(400, 500, 400, 20, { isStatic: true });
+  bowlCurve = Bodies.fromVertices(400, 800, [bowl_vertices], {
+    isStatic: true,
+  });
+  // World.add(world, bowl);
+  World.add(world, bowlCurve);
   noStroke();
   console.log(hourStatus);
 }
 
 function draw() {
   background(200, 190, 130);
+  DrawBowl(300, createVector(400, 600));
   dataPoints.forEach((element) => {
     element.drawDot();
   });
-  DrawBowl(300, createVector(400, 600));
   drawBreakfast(100, createVector(100, 100));
   DrawBox(createVector(300, 400), createVector(1200, -200));
+  // bowlCurve.
   // noLoop();
 }
 
 class DataPoint {
   constructor(hours, tired, breakfast, posVec2) {
     // console.log(hours, tired, breakfast, posVec2);
-    this.body = Bodies.circle(posVec2.x, posVec2.y, parseInt(hours) * 6);
+    this.body = Bodies.circle(posVec2.x, posVec2.y, parseInt(hours) * 5);
     World.add(world, this.body);
     this.hours = hours;
     this.tired = tired;
@@ -77,16 +129,15 @@ class DataPoint {
   drawDot() {
     var pos = this.body.position;
     var angle = this.body.angle;
-    console.log(pos, angle);
+    // console.log(pos, angle);
     push();
     // translate(pos.x, pos.y);
-    rotate(angle);
-    // rectMode(CENTER);
+    rectMode(CENTER);
     // print(angle)
-    textSize(this.r / 1.1);
-    rotate(angle);
-    text(emojiArr[this.tired], pos.x, pos.y, 1000, 1000);
-    // ellipse(0, 0, this.r * 2, this.r * 2);
+    textSize(this.r);
+    // rotate(angle);
+    // ellipse(pos.x, pos.y, this.r, this.r);
+    text(emojiArr[this.tired], pos.x - this.r * 0.685, pos.y + this.r * 0.35);
     pop();
 
     // drawEmoji(
@@ -105,6 +156,7 @@ function DrawBowl(r, posVec2) {
   beginShape();
   for (let i = 0; i < 180; i++) {
     vertex(cos(i) * r + posVec2.x, sin(i) * r + posVec2.y);
+    // vertex(bowl_vertices[i].x, bowl_vertices[i].y);
   }
   endShape();
 }
@@ -122,3 +174,7 @@ function DrawBox(sizeVec2, posVec2) {
 }
 
 function Emoji(x, y, r) {}
+// show the current mouse position when clicked
+function mousePressed() {
+  console.log(mouseX, mouseY);
+}
