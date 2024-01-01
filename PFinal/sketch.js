@@ -6,7 +6,9 @@ var Engine = Matter.Engine,
   Common = Matter.Common,
   Mouse = Matter.Mouse,
   MouseConstraint = Matter.MouseConstraint,
-  Render = Matter.Render;
+  Render = Matter.Render,
+  Composite = Matter.Composite,
+  Composites = Matter.Composites;
 
 var audio;
 var fft;
@@ -21,15 +23,15 @@ var engine;
 var world;
 var boxes = [];
 var TheBall;
-
+// Body.SetVelocity(TheBall, { x: 0, y: 0 });
 var SB;
 function setup() {
   createCanvas(windowWidth, windowHeight);
   angleMode("degrees");
-  SB = new Ball();
   engine = Engine.create();
   world = engine.world;
   Engine.run(engine);
+  engine.world.gravity.scale = 0.0001;
   ground = Bodies.rectangle(width / 2, height + 50, width, 100, {
     isStatic: true,
   });
@@ -41,8 +43,8 @@ function setup() {
   });
   World.add(world, wallRight);
 
-  console.log(SB.vertices, SB.position);
-  World.add(world, SB.body);
+  SB = new Poly(200, 5);
+
   const render = Render.create({
     element: document.body,
     engine: engine,
@@ -55,21 +57,45 @@ function setup() {
     },
   });
   World.add(engine.world, mouseConstraint);
+  audio = loadSound("Flower_dance.mp3", function () {
+    read_over = true;
+    td = audio.duration();
+    time_slider = createSlider(0, td, 0, 0.01);
+    time_slider.position(0, 0);
+    time_slider.style("width", windowWidth + "px");
+    time_slider.mouseReleased(function () {
+      audio.jump(time_slider.value());
+    });
+    play_button = createButton("⏯️");
+    play_button.position(0, 20);
+    play_button.mousePressed(function () {
+      if (audio.isPlaying()) {
+        audio.pause();
+      } else {
+        audio.play();
+      }
+    });
+    audio.playMode("restart");
+    // audio.play();
+  });
+  fft = new p5.FFT(0.3);
   noStroke();
 }
-class Ball {
-  constructor() {
-    this.position = createVector(width / 2, height / 2);
-    this.vertices = [];
+class Poly {
+  constructor(x, y) {
+    this.position = createVector(x, y);
+    this.balls = [];
     for (var i = 0; i < 360; i += 3) {
-      this.vertices.push({
-        x: 300 + cos(i) * 100,
-        y: 400 + sin(i) * 100,
+      this.balls.push({
+        x: x + cos(i) * 100,
+        y: y + sin(i) * 100,
       });
+      // make each ball a body and connect them
     }
     this.body = Bodies.fromVertices(this.position.x, this.position.y, [
-      this.vertices,
+      this.balls,
     ]);
+    World.add(world, this.body);
   }
   draw() {
     this.position = this.body.position;
@@ -77,16 +103,24 @@ class Ball {
     translate(this.position.x, this.position.y);
     rotate(this.body.angle);
     beginShape();
-    for (var i = 0; i < this.vertices.length; i++) {
-      vertex(this.vertices[i].x, this.vertices[i].y);
+    for (var i = 0; i < this.balls.length; i++) {
+      vertex(this.balls[i].x, this.balls[i].y);
     }
     endShape();
     pop();
   }
+  update(fftArr) {}
 }
 
 function draw() {
-  background(200, 190, 130);
+  if (read_over == true && !mouseIsPressed && audio.isPlaying()) {
+    time_slider.value(audio.currentTime());
+  }
+  background(0);
+  noFill();
+  stroke(255);
+  var fs = fft.analyze();
+  SB.update(fs);
   SB.draw();
   // noLoop();
 }
