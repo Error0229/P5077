@@ -8,7 +8,8 @@ var Engine = Matter.Engine,
   MouseConstraint = Matter.MouseConstraint,
   Render = Matter.Render,
   Composite = Matter.Composite,
-  Composites = Matter.Composites;
+  Composites = Matter.Composites,
+  Constraint = Matter.Constraint;
 
 var audio;
 var fft;
@@ -92,10 +93,33 @@ class Poly {
       });
       // make each ball a body and connect them
     }
+    this.bodies = [];
+    this.constraints = [];
+    for (var i = 0; i < this.balls.length; i++) {
+      this.bodies.push(
+        Bodies.circle(this.balls[i].x, this.balls[i].y, 3, {
+          restitution: 0.9,
+        })
+      );
+    }
+    for (var i = 0; i < this.balls.length; i++) {
+      this.constraints.push(
+        Constraint.create({
+          bodyA: this.bodies[i],
+          bodyB: this.bodies[(i + 1) % this.balls.length],
+          length: 10,
+          stiffness: 0.4,
+        })
+      );
+    }
+    for (var i = 0; i < this.bodies.length; i++) {
+      World.add(world, this.bodies[i]);
+    }
     this.body = Bodies.fromVertices(this.position.x, this.position.y, [
       this.balls,
     ]);
     World.add(world, this.body);
+    World.add(world, this.constraints);
   }
   draw() {
     this.position = this.body.position;
@@ -108,6 +132,13 @@ class Poly {
     }
     endShape();
     pop();
+    this.bodies.forEach((body) => {
+      push();
+      translate(body.position.x, body.position.y);
+      rotate(body.angle);
+      ellipse(0, 0, 3, 3);
+      pop();
+    });
   }
   update(fftArr) {}
 }
