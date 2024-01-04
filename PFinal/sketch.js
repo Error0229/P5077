@@ -11,29 +11,30 @@ var Engine = Matter.Engine,
   Composite = Matter.Composite,
   Composites = Matter.Composites,
   Constraint = Matter.Constraint;
-
 var audio;
 var fft;
 var time_slider;
 var play_button;
 var td;
 var read_over;
-// var engine = Engine.create();
 var ground;
 
 var engine;
 var world;
 var boxes = [];
-var dots = 314;
 var ballSize = 1;
 var TheBall;
-var forceFactor = 0.0000001;
-var defaultForce = 0.0;
-var rest = 0.2;
-var KNN = 7;
-var stiff = 0.3;
+var forceFactor = 0.000001;
+var defaultForce = 0.00001;
+var rest = 1;
+var KNN = 5;
+var stiff = 0.05;
 var radius = 100;
-var outerCount;
+var outerCount = 60;
+var innerCount = 400;
+var minCycleLength = 10;
+var parThresh = 200;
+var updateCount = 0;
 // Body.SetVelocity(TheBall, { x: 0, y: 0 });
 var SB;
 function resizeArray(originalArray, newSize) {
@@ -64,34 +65,40 @@ function setup() {
   world = engine.world;
   Engine.run(engine);
   engine.world.gravity.scale = 0.0;
-  ground = Bodies.rectangle(width / 2, height + 50, width, 100, {
-    isStatic: true,
-  });
-  World.add(world, ground);
-  wallLeft = Bodies.rectangle(-50, height / 2, 100, height, { isStatic: true });
-  World.add(world, wallLeft);
-  wallRight = Bodies.rectangle(width + 50, height / 2, 100, height, {
-    isStatic: true,
-  });
-  World.add(world, wallRight);
-  wallTop = Bodies.rectangle(width / 2, -50, width, 100, { isStatic: true });
-  World.add(world, wallTop);
+  var ground = Matter.Bodies.rectangle(
+    windowWidth / 2,
+    windowHeight,
+    windowWidth * 2,
+    100,
+    { isStatic: true }
+  );
+  var ceiling = Matter.Bodies.rectangle(
+    windowWidth / 2,
+    0,
+    windowWidth * 2,
+    100,
+    {
+      isStatic: true,
+    }
+  );
+  var leftWall = Matter.Bodies.rectangle(
+    0,
+    windowHeight / 2,
+    100,
+    windowHeight * 2,
+    { isStatic: true }
+  );
+  var rightWall = Matter.Bodies.rectangle(
+    windowWidth,
+    windowHeight / 2,
+    100,
+    windowHeight * 2,
+    { isStatic: true }
+  );
+  World.add(world, [ground, ceiling, leftWall, rightWall]);
 
-  SB = new Poly(300, 300);
-
-  const render = Render.create({
-    element: document.body,
-    engine: engine,
-  });
-  const mouse = Mouse.create(render.canvas);
-  const mouseConstraint = MouseConstraint.create(engine, {
-    mouse: mouse,
-    constraint: {
-      stiffness: 0.2,
-    },
-  });
-  World.add(engine.world, mouseConstraint);
-  audio = loadSound("Flower_dance.mp3", function () {
+  SB = new Poly(windowWidth / 2, windowHeight / 2);
+  audio = loadSound("Flower Dance Pt.2.mp3", function () {
     read_over = true;
     td = audio.duration();
     time_slider = createSlider(0, td, 0, 0.01);
@@ -118,77 +125,46 @@ function setup() {
 class Poly {
   constructor(x, y) {
     this.position = createVector(x, y);
-    this.balls = [];
     this.innerBalls = [];
-    var dd = sqrt(dots);
-    var dr = (2 * radius) / dd;
-    this.dr = dr;
-    var flag = 1;
-    this.outerIndex = [];
-    var indexFlag = true;
-    for (var i = 0; i < dd; i += 1) {
-      for (var j = 0; j < dd; j += 1) {
-        var rx = dr * i - radius + x + (flag * dr) / 2;
-        var ry = dr * j - radius + y;
-        if (dist(rx, ry, x, y) < radius) {
-          this.balls.push({ x: rx, y: ry });
-          if (indexFlag) {
-            this.outerIndex.push(this.balls.length - 1);
-            indexFlag = false;
-          }
-        }
-        flag = flag == 1 ? 0 : 1;
-      }
-      this.outerIndex.push(this.balls.length - 1);
-      // make each ball a body and connect them
-    }
-    var li = [];
-    var rh = [];
-    for (var i = 0; i < this.outerIndex.length; i++) {
-      if (i % 2 == 0) {
-        li.push(this.outerIndex[i]);
-      } else {
-        rh.push(this.outerIndex[i]);
-      }
-    }
-    rh.reverse();
-    this.outerIndex = li.concat(rh);
-    outerCount = this.outerIndex.length;
-    // create inner balls that use grid points and clip the outer balls
-    // var points = [];
-    // var dx = (2 * radius) / innerCount;
-    // var flag = 1;
-    // for (var i = -radius; i < radius; i += dx) {
-    //   for (var j = -radius; j < radius; j += dx) {
-    //     points.push({
-    //       x: x + i + (flag * dx) / 2,
-    //       y: y + j,
-    //     });
-    //     flag = flag == 1 ? 0 : 1;
-    //   }
-    // }
-    // console.log(points);
-    // for (var i = 0; i < points.length; i += 1) {
-    //   // if the point is inside the polygon, add it to the inner balls
-    //   if (dist(points[i].x, points[i].y, x, y) < radius) {
-    //     this.innerBalls.push(points[i]);
-    //   }
-    // }
-    this.edges = [];
+    this.outerBalls = [];
     this.bodies = [];
-    this.constraints = [];
-    for (var i = 0; i < this.balls.length; i++) {
+    this.rndIndex = [];
+    this.particle = [];
+    this.parColor = [];
+    this.rndColor = color(random(0, 255), random(0, 255), random(0, 255));
+    for (var i = 0; i < outerCount; i++) {
+      var theta = (i / outerCount) * 360;
       this.bodies.push(
-        Bodies.circle(this.balls[i].x, this.balls[i].y, ballSize, {
-          restitution: rest,
-          angle: (i / outerCount) * 360,
-        })
+        Bodies.circle(
+          x + radius * cos(theta),
+          y + radius * sin(theta),
+          ballSize,
+          { restitution: rest, mass: 0, angle: theta, angularSpeed: 200 }
+        )
       );
     }
-    // for (var i = 0; i < this.innerBalls.length; i++) {
-    //   this.bodies.push(
-    //     Bodies.circle(this.innerBalls[i].x, this.innerBalls[i].y, ballSize, {
-    //       // restitution: rest,
+    for (var i = 0; i < innerCount; i++) {
+      var theta = (i / innerCount) * 360;
+      var rndx = random(0.01, 0.98);
+      var rndy = random(0.01, 0.98);
+      this.bodies.push(
+        Bodies.circle(
+          x + rndx * radius * cos(theta),
+          y + rndy * radius * sin(theta),
+          ballSize,
+          { restitution: rest, mass: 0, angle: theta }
+        )
+      );
+    }
+    this.edges = [];
+    this.constraints = [];
+
+    // for (var i = 0; i < outerCount; i++) {
+    //   this.constraints.push(
+    //     Constraint.create({
+    //       bodyA: this.bodies[i],
+    //       bodyB: this.bodies[(i + 1) % outerCount],
+    //       stiffness: stiff,
     //     })
     //   );
     // }
@@ -215,8 +191,6 @@ class Poly {
         return a.dist - b.dist;
       });
       for (var j = 0; j < min(KNN, distances[i].length); j++) {
-        if (distances[i][j].dist == 0 || distances[i][j].dist > 1.5 * this.dr)
-          continue;
         // if the edge already exists, skip
         var flag = false;
         for (var k = 0; k < this.edges.length; k++) {
@@ -241,7 +215,16 @@ class Poly {
         this.edges.push({ indexFirst: i, indexSecond: distances[i][j].index });
       }
     }
-    console.log(this.edges);
+    // this.constraints.push(
+    //   Constraint.create({
+    //     bodyA: this.bodies[0],
+    //     bodyB: this.bodies[innerCount / 2],
+    //     length: 5,
+    //     damping: 0.1,
+    //     stiffness: 0.1,
+    //   })
+    // );
+
     // for (var i = 0; i < this.balls.length; i++) {
     //   this.constraints.push(
     //     Constraint.create({
@@ -273,12 +256,64 @@ class Poly {
     // }
     // endShape();
     // pop();
-    this.bodies.forEach((body) => {
-      push();
-      translate(body.position.x, body.position.y);
-      rotate(body.angle);
-      ellipse(0, 0, 1, 1);
-      pop();
+    // for (var i = 0; i < this.bodies.length; i++) {
+    //   if (i < outerCount) {
+    //     // red
+    //     fill(255, 0, 0);
+    //   } else {
+    //     // blue
+    //     fill(0, 0, 255);
+    //   }
+    //   push();
+    //   translate(this.bodies[i].position.x, this.bodies[i].position.y);
+    //   rotate(this.bodies[i].angle);
+    //   ellipse(0, 0, 4, 4);
+    //   pop();
+    // }
+    // this.bodies.forEach((body) => {
+    //   if (body.index in this.outerIndex) {
+    //     // red
+    //     fill(255, 0, 0);
+    //   } else {
+    //     // blue
+    //     fill(0, 0, 255);
+    //   }
+    //   push();
+    //   translate(body.position.x, body.position.y);
+    //   rotate(body.angle);
+    //   ellipse(0, 0, 4, 4);
+    //   pop();
+    // });
+
+    // random choose 30% of the dots
+    var rndPoints = [];
+    for (var i = 0; i < this.rndIndex.length; i++) {
+      rndPoints.push({
+        x: this.bodies[this.rndIndex[i]].position.x,
+        y: this.bodies[this.rndIndex[i]].position.y,
+      });
+    }
+    // for (var i = 0; i < outerCount; i++) {
+    //   rndPoints.push({
+    //     x: this.bodies[i].position.x,
+    //     y: this.bodies[i].position.y,
+    //   });
+    // }
+    Vertices.clockwiseSort(rndPoints);
+
+    // sort the points clockwise
+    // draw the curve
+    // set color to random bright color
+    strokeWeight(0);
+    fill(this.rndColor);
+    beginShape();
+    rndPoints.forEach((point) => {
+      vertex(point.x, point.y);
+    });
+    endShape(CLOSE);
+    this.particle.forEach((particle) => {
+      fill(this.parColor[this.particle.indexOf(particle)]);
+      circle(particle.position.x, particle.position.y, 4);
     });
     this.edges.forEach((edge) => {
       strokeWeight(1);
@@ -291,12 +326,28 @@ class Poly {
       );
     });
   }
-  update(fftArr) {
+  update(fftArr, sum) {
+    if (sum > 16000) {
+      this.rndIndex = [];
+      for (var i = 0; i < this.bodies.length; i++) {
+        if (i > outerCount && random() < 0.1 + updateCount / 20000)
+          this.rndIndex.push(i);
+        else if (i <= outerCount && random() < 0.2 + updateCount / 10000) {
+          this.rndIndex.push(i);
+        }
+      }
+      this.rndColor = color(
+        this.rndColor.levels[0] + random(-10, 10),
+        this.rndColor.levels[1] + random(-10, 10),
+        this.rndColor.levels[2] + random(-10, 10)
+      );
+      updateCount++;
+    }
     // set current position to every bodies's average position
     this.position = createVector(0, 0);
     for (var i = 0; i < outerCount; i++) {
-      this.position.x += this.bodies[this.outerIndex[i]].position.x;
-      this.position.y += this.bodies[this.outerIndex[i]].position.y;
+      this.position.x += this.bodies[i].position.x;
+      this.position.y += this.bodies[i].position.y;
     }
     this.position.x /= outerCount;
     this.position.y /= outerCount;
@@ -305,31 +356,56 @@ class Poly {
     // console.log(this.position);
     for (var i = 0; i < outerCount; i++) {
       var normVector = {
-        x: this.bodies[this.outerIndex[i]].position.x - this.position.x,
-        y: this.bodies[this.outerIndex[i]].position.y - this.position.y,
+        x: this.bodies[i].position.x - this.position.x,
+        y: this.bodies[i].position.y - this.position.y,
       };
       var norm = sqrt(
         normVector.x * normVector.x + normVector.y * normVector.y
       );
       normVector.x /= norm;
       normVector.y /= norm;
-      Body.applyForce(this.bodies[this.outerIndex[i]], this.position, {
+      Body.applyForce(this.bodies[i], this.position, {
         x: normVector.x * (fftArr[i] * forceFactor + defaultForce),
         y: normVector.y * (fftArr[i] * forceFactor + defaultForce),
       });
+      if (fftArr[i] > parThresh) {
+        this.particle.push(
+          Bodies.circle(
+            this.bodies[i].position.x,
+            this.bodies[i].position.y,
+            2,
+            { restitution: rest }
+          )
+        );
+        this.particle[this.particle.length - 1].force.x =
+          normVector.x * 0.1 * forceFactor * 10000;
+        this.particle[this.particle.length - 1].force.y =
+          normVector.y * 0.1 * forceFactor * 10000;
+        World.add(world, this.particle[this.particle.length - 1]);
+        this.parColor.push(this.rndColor);
+      }
     }
   }
 }
-
+var freq_buffer = [];
+var threshold = 0.1;
 function draw() {
   if (read_over == true && !mouseIsPressed && audio.isPlaying()) {
     time_slider.value(audio.currentTime());
   }
   background(0);
   noFill();
-  stroke(255);
+  // stroke(255);
   var fs = fft.analyze();
-  SB.update(fs);
+  freq_buffer.push(fs);
+  if (freq_buffer.length > 2) {
+    freq_buffer.splice(0, 1);
+  }
+  var sum = 0;
+  for (var i = 0; i < fs.length; i++) {
+    sum += fs[i] - freq_buffer[0][i];
+  }
+  if (sum > 4000) SB.update(fs, sum);
   SB.draw();
   // noLoop();
 }
