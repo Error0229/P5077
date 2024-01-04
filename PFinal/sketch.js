@@ -368,6 +368,7 @@ class Poly {
         x: normVector.x * (fftArr[i] * forceFactor + defaultForce),
         y: normVector.y * (fftArr[i] * forceFactor + defaultForce),
       });
+      Body.setAngularVelocity(this.bodies[i], 50);
       if (fftArr[i] > parThresh) {
         this.particle.push(
           Bodies.circle(
