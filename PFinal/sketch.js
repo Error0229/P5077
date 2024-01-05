@@ -13,12 +13,10 @@ var Engine = Matter.Engine,
   Constraint = Matter.Constraint;
 var audio;
 var fft;
-var time_slider;
-var play_button;
 var td;
 var read_over;
 var ground;
-
+var audioFileName = "Sacred Play Secret Place-XX2gPs44fxg.opus";
 var engine;
 var world;
 var boxes = [];
@@ -26,16 +24,14 @@ var ballSize = 1;
 var TheBall;
 var forceFactor = 0.000001;
 var defaultForce = 0.00001;
-var rest = 1;
-var KNN = 5;
-var stiff = 0.05;
+var rest = 0.4;
+var KNN = 4;
+var stiff = 0.06;
 var radius = 100;
 var outerCount = 60;
-var innerCount = 400;
-var minCycleLength = 10;
-var parThresh = 200;
+var innerCount = 200;
+var parThresh = 190;
 var updateCount = 0;
-// Body.SetVelocity(TheBall, { x: 0, y: 0 });
 var SB;
 function resizeArray(originalArray, newSize) {
   let newArray = [];
@@ -48,11 +44,13 @@ function resizeArray(originalArray, newSize) {
     let upperIndex = Math.ceil(indexInOld);
     let t = indexInOld - lowerIndex;
 
-    // Linear interpolation
-    let interpolatedValue =
-      (1 - t) * originalArray[lowerIndex] +
-      t * originalArray[Math.min(upperIndex, oldSize - 1)];
-    newArray.push(interpolatedValue);
+    // smooth by average
+    var sum = 0;
+    for (var j = lowerIndex; j <= Math.min(upperIndex, oldSize - 1); j++) {
+      sum += originalArray[j];
+    }
+    newArray.push(sum / (Math.min(upperIndex, oldSize - 1) - lowerIndex + 1));
+    // newArray.push(interpolatedValue);
   }
 
   return newArray;
@@ -98,24 +96,7 @@ function setup() {
   World.add(world, [ground, ceiling, leftWall, rightWall]);
 
   SB = new Poly(windowWidth / 2, windowHeight / 2);
-  audio = loadSound("Flower Dance Pt.2.mp3", function () {
-    read_over = true;
-    td = audio.duration();
-    time_slider = createSlider(0, td, 0, 0.01);
-    time_slider.position(0, 0);
-    time_slider.style("width", windowWidth + "px");
-    time_slider.mouseReleased(function () {
-      audio.jump(time_slider.value());
-    });
-    play_button = createButton("⏯️");
-    play_button.position(0, 20);
-    play_button.mousePressed(function () {
-      if (audio.isPlaying()) {
-        audio.pause();
-      } else {
-        audio.play();
-      }
-    });
+  audio = loadSound(audioFileName, function () {
     audio.playMode("restart");
     // audio.play();
   });
@@ -327,12 +308,12 @@ class Poly {
     });
   }
   update(fftArr, sum) {
-    if (sum > 16000) {
+    if (sum > 3000) {
       this.rndIndex = [];
       for (var i = 0; i < this.bodies.length; i++) {
-        if (i > outerCount && random() < 0.1 + updateCount / 20000)
+        if (i > outerCount && random() < 0.01 + updateCount / 2000)
           this.rndIndex.push(i);
-        else if (i <= outerCount && random() < 0.2 + updateCount / 10000) {
+        else if (i <= outerCount && random() < 0.02 + updateCount / 1000) {
           this.rndIndex.push(i);
         }
       }
@@ -388,12 +369,14 @@ class Poly {
     }
   }
 }
+function keyPressed() {
+  if (keyCode == 32) {
+    audio.play();
+  }
+}
 var freq_buffer = [];
 var threshold = 0.1;
 function draw() {
-  if (read_over == true && !mouseIsPressed && audio.isPlaying()) {
-    time_slider.value(audio.currentTime());
-  }
   background(0);
   noFill();
   // stroke(255);
@@ -406,7 +389,7 @@ function draw() {
   for (var i = 0; i < fs.length; i++) {
     sum += fs[i] - freq_buffer[0][i];
   }
-  if (sum > 4000) SB.update(fs, sum);
+  if (sum > 2500) SB.update(fs, sum);
   SB.draw();
   // noLoop();
 }
